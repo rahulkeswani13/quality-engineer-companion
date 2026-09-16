@@ -45,13 +45,13 @@ overlap rerank. MiniLM is a local extra (`COMPANION_RERANK=1`), not in Docker.
 flowchart LR
   ui[Traveler UI]
   api[FastAPI]
-  graph[LangGraph plus disk checkpointer]
+  lg[LangGraph plus disk checkpointer]
   rag[Hybrid RAG]
   mom[SQLite mock MOM]
   ui -->|"POST run, GET events, POST resume"| api
-  api --> graph
-  graph --> rag
-  graph --> mom
+  api --> lg
+  lg --> rag
+  lg --> mom
 ```
 
 Kill the server at the yellow tag, restart, resume the same thread: the
