@@ -1,0 +1,44 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+qe-console/dist/
+qe-console/node_modules/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+dist/
+build/
+
+# Companion runtime
+*.db
+.cache/
+companion/.cache/
+companion/eval/report.json
+companion/eval/model_card.json
+companion/eval/scenario_report.json
+checkpoints.sqlite
+mom.sqlite
+
+# Local-only (not part of the public demo)
+PLAN.md
+hud/
+docs/archive/
+
+# Environment
+.env
+.env.local

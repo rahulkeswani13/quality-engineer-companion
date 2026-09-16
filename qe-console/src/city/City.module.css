@@ -1,0 +1,203 @@
+/* City view — every color comes from global.css tokens (paper/ink/rule/tag/
+ * stamp/ok). No hex literals in this file; the WebGL layer mirrors the same
+ * six values in topology.ts and that duplication is commented there. */
+
+.wrap {
+  position: relative;
+  height: 520px;
+  border: 1px solid var(--rule);
+  background:
+    linear-gradient(180deg, rgba(26, 34, 40, 0.03), rgba(26, 34, 40, 0)),
+    var(--paper);
+  overflow: hidden;
+}
+
+.canvasHost {
+  position: absolute;
+  inset: 0;
+}
+
+.canvasHost canvas {
+  display: block;
+}
+
+/* ---- in-canvas labels (rendered through drei Html) ---- */
+
+.label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.labelActive {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.edgeLabel,
+.gateLabel {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  white-space: nowrap;
+  /* informational only — must never block clicks on labels beneath */
+  pointer-events: none;
+}
+
+.gateLabel {
+  border-style: dashed;
+}
+
+.edge_retry {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.edge_refuse {
+  color: var(--stamp);
+  border-color: var(--stamp);
+}
+
+.edge_finish {
+  color: var(--ink);
+}
+
+/* ---- overlay chrome ---- */
+
+.statusStrip {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.stripStatus::before {
+  content: "● ";
+}
+
+.stripStatus[data-status="running"] {
+  color: var(--ok);
+}
+
+.stripStatus[data-status="waiting_human"] {
+  color: var(--ink);
+  background: var(--tag);
+  padding: 1px 6px;
+}
+
+.stripStatus[data-status="abstained"],
+.stripStatus[data-status="rejected"],
+.stripStatus[data-status="failed"] {
+  color: var(--stamp);
+}
+
+.stripStatus[data-status="done"] {
+  color: var(--ok);
+}
+
+.stripLot,
+.stripSteps {
+  color: var(--ink);
+  opacity: 0.75;
+}
+
+.legendStack {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 13.5rem;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.inspect {
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.inspectName {
+  margin: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.inspectId {
+  margin: 0.15rem 0 0.4rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--rule);
+}
+
+.inspectBlurb {
+  margin: 0;
+  font-size: 12px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendItem i {
+  display: inline-block;
+  width: 18px;
+  height: 5px;
+}
+
+.swatchOk {
+  background: var(--ok);
+}
+
+.swatchTag {
+  background: var(--tag);
+}
+
+.swatchStamp {
+  background: var(--stamp);
+}
+
+.swatchRule {
+  background: var(--rule);
+}
+
+.hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink);
+  opacity: 0.65;
+}

@@ -1,0 +1,11 @@
+services:
+  companion:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      COMPANION_RERANK: "0"
+      PORT: "8000"
+      # Runtime only — never copied into the image.
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}

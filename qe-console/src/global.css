@@ -1,0 +1,53 @@
+:root {
+  --paper: #d9e2e8;
+  --ink: #1a2228;
+  --rule: #8a9aa6;
+  --tag: #d4a017;
+  --stamp: #8e1d2c;
+  --ok: #2f5d50;
+  --sans: "IBM Plex Sans", "Helvetica Neue", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --display: Fraunces, "Times New Roman", serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
