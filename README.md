@@ -16,6 +16,12 @@ Nonsense queries must abstain.
 
 The product name is **Quality Engineer Companion** (traveler UI and API).
 
+## How it works
+
+The model retrieves and proposes. Code owns plant and current revision. A human
+approves before mock MOM is written. Graph and layer diagrams:
+[`docs/architecture.md`](docs/architecture.md).
+
 **New here?** Run locally below. Walkthrough: [`demo/DEMO.md`](demo/DEMO.md).
 Agent rules: [`AGENTS.md`](AGENTS.md). License: [MIT](LICENSE).
 
@@ -123,7 +129,7 @@ With no key, Gemini is skipped so CI stays green.
 | `qe-console/` | Vite + React inspection-traveler console |
 | `companion/corpus/` | ~20 revisioned markdown procedures/CAPAs, including deliberate traps |
 | `demo/DEMO.md` | Walkthrough script |
-| `docs/` | Design records |
+| `docs/architecture.md` | Graph and layer diagrams |
 | `docs/screenshots/` | README console stills (no hosted demo required) |
 
 ## How to demo (90 seconds)

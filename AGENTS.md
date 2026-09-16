@@ -6,7 +6,7 @@ anything is written to a mock MOM (SQLite). Plant code **B** (display **Plant B*
 The product name is **Quality Engineer Companion** (traveler UI and API).
 
 **`PLAN.md` is local-only** (gitignored). When it is present in this checkout,
-read it before doing work. Public visitors use `README.md` and `demo/DEMO.md`.
+read it before doing work. Public visitors use `README.md`, `demo/DEMO.md`, and `docs/architecture.md`.
 The product is complete; there is no next sprint.
 
 ## Commands (all must be green before you claim done)
@@ -44,7 +44,7 @@ cd qe-console && npm run probe      # Playwright walk of all 10 scenarios
 | `companion/corpus/` | ~20 revisioned markdown SOPs/WIs/CAPAs incl. the two traps plus unpublished `QMS-TORQUE-13` |
 | `companion/eval/` | gold cases + runner (writes `report.json`) |
 | `qe-console/` | Vite + React inspection-traveler UI (`npm run probe` = UI test) |
-| `docs/QE_*.md` | Pre-build design records; trust running code over those docs |
+| `docs/architecture.md` | Graph and layer diagrams |
 | `demo/DEMO.md` | Walkthrough script |
 
 ## Conventions

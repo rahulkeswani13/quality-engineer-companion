@@ -1,5 +1,5 @@
-"""C5: HTTP surface behaves per docs/QE_CONSOLE_ARCHITECTURE.md — 202 start,
-SSE event replay after reconnect, read-only HITL, health tells the truth.
+"""C5: HTTP surface — 202 start, SSE event replay after reconnect,
+read-only HITL, health tells the truth.
 Each test gets a hermetic database via COMPANION_*_DB env overrides."""
 
 from fastapi.testclient import TestClient
