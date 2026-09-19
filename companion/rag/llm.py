@@ -10,6 +10,28 @@ from companion.rag.embed import GeminiQuotaError
 TOPIC_HINTS = ("torque", "ncr", "hold", "qms", "procedure", "capa", "lot", "containment", "wrench")
 
 
+def _needs_fastener_recovery(query: str) -> bool:
+    """Recognize only shorthand fastening notes that merit query expansion.
+
+    The first retrieval/grade pass intentionally remains weak for these notes:
+    ``fastener`` is not a general topic hint.  Recovery is allowed only when
+    it is paired with a serial, a below-spec signal, or an explicit final
+    assembly signal.  This keeps unrelated printer/cafeteria questions on the
+    refusal route.
+    """
+
+    normalized = query.lower()
+    has_fastening = bool(
+        re.search(r"\b(?:fastener|fasteners|fastening|bolt|bolts|nut|nuts)\b", normalized)
+    )
+    has_serial = bool(re.search(r"\bsn[-\s]?\d{3,}\b", normalized))
+    has_below_spec = bool(
+        re.search(r"\b(?:below|under)\s+(?:the\s+)?(?:spec|specification|limit|target)\b", normalized)
+    )
+    has_final_assembly = bool(re.search(r"\bfinal[-\s]+assembly\b", normalized))
+    return has_fastening and (has_serial or has_below_spec or has_final_assembly)
+
+
 def local_topic_labels(query: str, chunks: list[Chunk]) -> dict[str, str]:
     q = set(re.findall(r"[a-z0-9]+", query.lower()))
     labels: dict[str, str] = {}
@@ -26,6 +48,13 @@ def local_topic_labels(query: str, chunks: list[Chunk]) -> dict[str, str]:
 
 
 def local_rewrite(query: str, plant: str) -> str:
+    if _needs_fastener_recovery(query):
+        # Keep the operator's note and add only deterministic retrieval terms
+        # needed to recover the current torque NCR procedure.  Do not broaden
+        # TOPIC_HINTS: unrelated questions must continue to abstain.
+        return (
+            f"{query} torque NCR containment hold current revision Plant {plant}"
+        )
     return f"{query} current revision plant {plant}"
 
 

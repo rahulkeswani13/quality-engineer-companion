@@ -63,11 +63,41 @@ npm install
 npm run dev                     # open http://localhost:5173
 ```
 
-No password locally. Pick a scenario → **Run**. After done / abstained /
-rejected, **Run** mints a new incident automatically. **Reset demo** reseeds
-MOM so leftover holds do not leak into the next scenario. **Publish QMS-TORQUE 13**
-(after the yellow tag is finished) moves the current-rev pointer; Run Torque NCR
-again to see rev 12 graded `wrong_rev` and the plan cite 13. Reset restores 12.
+No password is required for local use unless `DEMO_PASSWORD` is configured.
+Choose a scenario and select **Run**. After a run finishes, is rejected, or
+abstains, selecting **Run** again automatically starts a new incident.
+**Reset demo** clears the mock MOM records and saved workflow state.
+
+### Scenario catalog
+
+The picker has 12 choices: 11 incident scenarios and one document-control action.
+
+**Incident containment (6)**
+
+- **Torque NCR (hero)** — Current Plant B torque failure on SN-4419; proposes lot containment and waits for approval.
+- **Lot vs unit scope** — Checks whether the procedure calls for a lot hold instead of per-serial rows.
+- **Shipped-sibling exception** — Separates the shipped unit for escalation while containing in-plant siblings.
+- **Wrench out of calibration** — Applies the calibration escape procedure to lot L-8820.
+- **Skipped verification step** — Routes a missed re-torque verification on lot L-8830 through the current work instruction.
+- **Customer complaint NCR** — Handles a delivered-unit complaint on lot L-8821 through the NCR SOP.
+
+**Evidence safety (2)**
+
+- **Obsolete revision lure** — Retrieves superseded rev 11, then code excludes it before planning.
+- **Wrong-plant CAPA lure** — Surfaces the Plant A lookalike, then code excludes it from the Plant B plan.
+
+**Search recovery (1)**
+
+- **Cryptic operator note** — Rewrites a terse shop-floor note once to recover grounded current evidence.
+
+**Safe refusal (2)**
+
+- **Garbage query** — Demonstrates the rewrite loop and abstains when nothing grounds.
+- **Off-topic refusal** — Refuses a cafeteria/Wi-Fi request without writing to MOM.
+
+**Document control (1)**
+
+- **Document control: publish QMS-TORQUE 13** — Publishes revision 13, changes the current pointer, and writes no MOM record.
 
 ## Docker (one process, UI + API)
 
@@ -106,13 +136,13 @@ COMPANION_RERANK=1 python -m companion serve
 
 ```bash
 pytest -q                        # unit + API + restart-resume
-python -m companion eval         # gold + 10 scenarios, "ok": true (forced local)
+python -m companion eval         # gold + 11 incident scenarios, "ok": true (forced local)
 python -m companion eval --models  # optional; writes companion/eval/model_card.json
-cd qe-console && npm run probe   # Playwright walk of all 10 scenarios
+cd qe-console && npm run probe   # Playwright walk of all 11 incident scenarios + document control
 ```
 
 `eval --models` always records the local contract. If `GOOGLE_API_KEY` is set
-it also replays the ten scenarios on Gemini (latency, fallback count, pass/fail).
+it also replays the 11 incident scenarios on Gemini (latency, fallback count, pass/fail).
 With no key, Gemini is skipped so CI stays green.
 
 | Provider | When | What the card records |

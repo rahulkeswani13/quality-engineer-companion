@@ -17,6 +17,7 @@ import {
   type EvidenceChunk,
   type HealthInfo,
   type ScenarioInfo,
+  type ScenarioRouteKind,
   type SerialRow,
   type Snapshot,
 } from "./api";
@@ -61,6 +62,9 @@ type PublishRevisionScenario = {
   id: "publish_qms_torque_13";
   label: string;
   action: "publish_revision";
+  group: "Document control";
+  route_kind: "control";
+  guide_steps: string[];
 };
 
 type ScenarioChoice = ScenarioInfo | PublishRevisionScenario;
@@ -71,6 +75,14 @@ const PUBLISH_REVISION_SCENARIO: PublishRevisionScenario = {
   id: "publish_qms_torque_13",
   label: "Document control: publish QMS-TORQUE 13",
   action: "publish_revision",
+  group: "Document control",
+  route_kind: "control",
+  guide_steps: [
+    "Select Publish QMS-TORQUE 13 and confirm revision 12 is still current.",
+    "Publish revision 13. This updates the controlled procedure pointer and writes no MOM record.",
+    "Run the unlocked Torque NCR, then review the new procedure alongside the obsolete revision trap.",
+    "Approve or reject the resulting lot-hold proposal at the human gate.",
+  ],
 };
 
 // B1: the traveler reads like shop paperwork. Raw graph ids stay as mono subtext.
@@ -363,6 +375,41 @@ function isPublishRevisionScenario(
   return scenario?.id === PUBLISH_REVISION_SCENARIO.id;
 }
 
+const ROUTE_LABELS: Record<ScenarioRouteKind, string> = {
+  direct: "direct containment",
+  recovery: "recovery containment",
+  refusal: "refusal",
+  control: "document control",
+};
+
+function routeLabel(scenario: ScenarioChoice): string {
+  return ROUTE_LABELS[scenario.route_kind];
+}
+
+function expectedOutcome(scenario: ScenarioChoice): string {
+  if (isPublishRevisionScenario(scenario)) {
+    return "publish the controlled revision, then run the prepared Torque NCR";
+  }
+  return scenario.expect_status === "waiting_human"
+    ? "waiting for your decision"
+    : "abstain with no MOM write";
+}
+
+function groupedScenarioChoices(
+  choices: ScenarioChoice[],
+): { group: string; choices: ScenarioChoice[] }[] {
+  const groups = new Map<string, ScenarioChoice[]>();
+  for (const choice of choices) {
+    const group = groups.get(choice.group);
+    if (group) {
+      group.push(choice);
+    } else {
+      groups.set(choice.group, [choice]);
+    }
+  }
+  return [...groups.entries()].map(([group, grouped]) => ({ group, choices: grouped }));
+}
+
 export default function App() {
   const [threadId, setThreadId] = useState<string>("");
   const [query, setQuery] = useState(TORQUE_NCR);
@@ -386,6 +433,8 @@ export default function App() {
   const [gate, setGate] = useState<"unknown" | "open" | "locked">("unknown");
   const [password, setPassword] = useState("");
   const streamRef = useRef<EventSource | null>(null);
+  // Bumped on New incident so in-flight SSE / startRun cannot paint the previous city.
+  const runGen = useRef(0);
   // Small imperative wrapper so SSE lifecycle stays out of React state.
   const stream = {
     close: () => {
@@ -404,7 +453,14 @@ export default function App() {
   const canDecide = waiting;
   const torqueRev = health.current_revs?.["QMS-TORQUE"] ?? 12;
   const canPublish = canRun && torqueRev !== 13;
-  const scenarioChoices: ScenarioChoice[] = [...scenarios, PUBLISH_REVISION_SCENARIO];
+  const scenarioChoices = useMemo<ScenarioChoice[]>(
+    () => [...scenarios, PUBLISH_REVISION_SCENARIO],
+    [scenarios],
+  );
+  const scenarioGroups = useMemo(
+    () => groupedScenarioChoices(scenarioChoices),
+    [scenarioChoices],
+  );
 
   const planText = useMemo(() => (snap?.plan ? JSON.stringify(snap.plan, null, 2) : ""), [snap]);
   const allEvidence = useMemo(() => evidenceChunks(snap), [snap]);
@@ -464,9 +520,8 @@ export default function App() {
   }
 
   async function mintThread() {
+    runGen.current += 1;
     stream.close();
-    const id = await createThread();
-    setThreadId(id);
     setStatus("idle");
     setStamps([]);
     setRoute([]);
@@ -476,6 +531,8 @@ export default function App() {
     setHolds(undefined);
     setSerials([]);
     setError("");
+    const id = await createThread();
+    setThreadId(id);
     window.sessionStorage.setItem(ACTIVE_THREAD_KEY, id);
     return id;
   }
@@ -519,10 +576,12 @@ export default function App() {
   }, []);
 
   function listen(id: string) {
+    const gen = runGen.current;
     stream.replaceWith(
       openEventStream(
         id,
         (event) => {
+          if (runGen.current !== gen) return;
           if (
             event.node &&
             event.node !== "waiting_human" && // SSE terminal marker, not a node
@@ -566,6 +625,7 @@ export default function App() {
           }
         },
         () => {
+          if (runGen.current !== gen) return;
           getSnapshot(id).then(hydrateSnapshot).catch(() => undefined);
           getHolds().then(setHolds).catch(() => undefined);
           getHealth().then(setHealth).catch(() => undefined);
@@ -590,6 +650,7 @@ export default function App() {
     const runQuery = publishRevisionScenario ? TORQUE_NCR : query;
     let id = threadId;
     if (!id || TERMINAL.has(status)) id = await mintThread();
+    const gen = runGen.current;
     if (publishRevisionScenario) {
       setScenarioId(runScenarioId);
       setQuery(runQuery);
@@ -598,6 +659,7 @@ export default function App() {
     setStamps([]);
     setRoute([]);
     await startRun(id, runQuery, runScenarioId);
+    if (runGen.current !== gen) return;
     listen(id);
   }
 
@@ -628,7 +690,9 @@ export default function App() {
 
   async function onResume(decision: "approve" | "reject") {
     setError("");
+    const gen = runGen.current;
     await resume(threadId, decision);
+    if (runGen.current !== gen) return;
     setStatus("running");
     setRoute((prev) => [...prev, "apply_or_escalate"]);
     listen(threadId);
@@ -668,28 +732,25 @@ export default function App() {
         </span>
       </header>
 
-      <section
-        className={`${styles.statusBar} ${
-          workflow.kind === "wait"
-            ? styles.statusBarWait
-            : workflow.kind === "ok"
-              ? styles.statusBarOk
-              : workflow.kind === "no"
-                ? styles.statusBarNo
-                : ""
-        }`}
-        aria-label="Current workflow status"
-        aria-live="polite"
-        role="status"
-      >
-        <p className={styles.statusCurrent}>{workflow.current}</p>
-        <p className={styles.statusNext}>Next: {workflow.next}</p>
-        <span className={styles.healthNote}>
-          {health.ok
-            ? `${health.provider ?? "?"} · ${health.retriever ?? "?"}`
-            : "API offline"}
-        </span>
-      </section>
+      {status !== "idle" && (
+        <section
+          className={`${styles.statusBar} ${
+            workflow.kind === "wait"
+              ? styles.statusBarWait
+              : workflow.kind === "ok"
+                ? styles.statusBarOk
+                : workflow.kind === "no"
+                  ? styles.statusBarNo
+                  : ""
+          }`}
+          aria-label="Current workflow status"
+          aria-live="polite"
+          role="status"
+        >
+          <p className={styles.statusCurrent}>{workflow.current}</p>
+          <p className={styles.statusNext}>Next: {workflow.next}</p>
+        </section>
+      )}
 
       <div className={styles.chips}>
         <select
@@ -699,13 +760,22 @@ export default function App() {
           disabled={running || waiting}
           onChange={(ev) => onPickScenario(ev.target.value)}
         >
-          {scenarios.length === 0 && <option value="torque_ncr">Torque NCR</option>}
-          {scenarioChoices.map((scenario) => (
-            <option key={scenario.id} value={scenario.id}>
-              {isPublishRevisionScenario(scenario)
-                ? `${scenario.label} · no MOM write`
-                : `${scenario.label} · ${scenario.lot_id ?? "L-8819"} · ${scenario.expect_status}`}
-            </option>
+          {scenarios.length === 0 && (
+            <optgroup label="Incident containment — 1 case">
+              <option value="torque_ncr">Torque NCR</option>
+            </optgroup>
+          )}
+          {scenarioGroups.map(({ group, choices }) => (
+            <optgroup
+              key={group}
+              label={`${group} — ${choices.length} ${choices.length === 1 ? "case" : "cases"}`}
+            >
+              {choices.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>
+                  {scenario.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <button
@@ -726,7 +796,7 @@ export default function App() {
           aria-pressed={guided}
           onClick={() => setGuided((g) => !g)}
         >
-          {guided ? "Guided: on" : "Guided"}
+          {guided ? "Guided: On" : "Guided: Off"}
         </button>
         <div className={styles.sheetCluster}>
           <button
@@ -797,6 +867,9 @@ export default function App() {
         <p className={styles.scenarioWhy}>
           <strong>{publishRevisionScenario ? "Document-control scenario:" : "Selected scenario:"}</strong>{" "}
           {publishRevisionScenario ? publishScenarioMessage : activeScenario.why_route}
+          <span className={styles.scenarioMeta}>
+            Route: {routeLabel(activeScenario)} · Expected outcome: {expectedOutcome(activeScenario)}.
+          </span>
         </p>
       )}
 
@@ -849,14 +922,18 @@ export default function App() {
         </div>
       )}
 
-      {guided && (
-        <ol className={styles.guide} aria-label="Demo walkthrough">
-          <li>Pick <strong>Torque NCR</strong>, press <strong>Run</strong>, watch the traveler stamp each step.</li>
-          <li>In <strong>Evidence</strong>: rev 11 shows <strong>Excluded: obsolete revision</strong> <em>· wrong_rev</em>; Plant A CAPA shows <strong>Excluded: wrong plant</strong> <em>· wrong_plant</em>. Traps are supposed to be found — then rejected by code.</li>
-          <li>At the yellow tag read <strong>Proposed</strong>: lot hold + shipped exception, marked not written. <strong>Recorded</strong> stays empty.</li>
-          <li><strong>Approve</strong> stamps the plan written and fills Recorded. <strong>Reject</strong> stamps refused — Recorded stays empty.</li>
-          <li>After Approve, pick <strong>Document control: publish QMS-TORQUE 13</strong>. Publish it, then use its unlocked <strong>Run Torque NCR</strong> button. Rev 12 stays in Evidence as <strong>Excluded: obsolete revision</strong> <em>· wrong_rev</em>; the plan cites 13.</li>
-        </ol>
+      {guided && activeScenario && (
+        <section className={styles.guide} aria-label="Scenario guide">
+          <p className={styles.guideMeta}>
+            Route: <strong>{routeLabel(activeScenario)}</strong> · Expected outcome:{" "}
+            <strong>{expectedOutcome(activeScenario)}</strong>.
+          </p>
+          <ol>
+            {activeScenario.guide_steps.map((step, index) => (
+              <li key={`${activeScenario.id}-guide-${index}`}>{step}</li>
+            ))}
+          </ol>
+        </section>
       )}
 
       <div className={styles.watch}>
@@ -904,7 +981,9 @@ export default function App() {
           <div className={styles.pane}>
             <p className={styles.paneTitle}>Traveler — workflow stamps</p>
             {stamps.length === 0 ? (
-              <p className={styles.empty}>Pick Torque NCR or Garbage query.</p>
+              <p className={styles.empty}>
+                Choose a scenario and select Run to see workflow stamps.
+              </p>
             ) : (
               stamps.map((row) => (
                 <div className={styles.row} key={row.node}>
@@ -1129,6 +1208,11 @@ export default function App() {
 
                 <details className={styles.technicalDetails} aria-label="Technical details">
                   <summary>Technical details</summary>
+                  <p className={styles.healthNote}>
+                    Runtime: {health.ok
+                      ? `${health.provider ?? "unknown"} · ${health.retriever ?? "unknown"}`
+                      : "API unavailable"}
+                  </p>
                   {snap.plan.explanation && <p>{snap.plan.explanation}</p>}
                   {status === "done" && <p>Demo implementation: this MOM record is backed by local SQLite.</p>}
                   <pre className={styles.planJson}>{planText}</pre>

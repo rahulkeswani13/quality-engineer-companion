@@ -1,4 +1,4 @@
-/* Drives the real UI through all ten canned scenarios plus two approve writes.
+/* Drives the real UI through all eleven canned incidents plus document control.
  * Usage: npm run probe  (API on :8000, Vite on :5173 or PROBE_PORT)
  */
 import { chromium } from "playwright";
@@ -6,17 +6,7 @@ import { chromium } from "playwright";
 const PORT = process.env.PROBE_PORT || "5173";
 const exe = `${process.env.HOME}/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
 
-const APPROVE_PATHS = [
-  "torque_ncr",
-  "obsolete_rev_lure",
-  "wrong_plant_capa",
-  "containment_scope",
-  "shipped_sibling",
-  "calibration_escape",
-  "skipped_verification",
-  "customer_complaint",
-];
-const ABSTAIN_PATHS = ["garbage_query", "off_topic_refusal"];
+const PUBLISH_ID = "publish_qms_torque_13";
 const LOT_BY_SCENARIO = {
   torque_ncr: "L-8819",
   obsolete_rev_lure: "L-8819",
@@ -49,32 +39,65 @@ async function clickReset() {
   await waitStatus("idle", 8000);
 }
 
+async function getScenarioCatalog() {
+  return p.evaluate(async () => {
+    const response = await fetch("/scenarios");
+    if (!response.ok) throw new Error(`scenario catalog failed: ${response.status}`);
+    const body = await response.json();
+    return body.scenarios;
+  });
+}
+
 await p.goto(`http://localhost:${PORT}/`);
 await p.waitForTimeout(1500);
+const scenarioCatalog = await getScenarioCatalog();
+const incidentScenarios = scenarioCatalog;
+const approveScenarios = incidentScenarios.filter((scenario) => scenario.expect_status === "waiting_human");
+const abstainScenarios = incidentScenarios.filter((scenario) => scenario.expect_status === "abstained");
+const recoveryScenarios = incidentScenarios.filter((scenario) => scenario.route_kind === "recovery");
 
-const health = await p.locator("[class*=healthNote]").textContent();
-console.log("HEALTH BADGE:", health.trim());
 const workflowStatus = p.locator("[aria-label='Current workflow status']");
-const idleStatus = (await workflowStatus.textContent()) || "";
-const hasIdleStatus =
-  idleStatus.includes("Review a torque failure, inspect which procedures were accepted or rejected, then decide whether to create a lot hold.") &&
-  idleStatus.includes("Choose a scenario and run it.");
-console.log("IDLE STATUS BAR:", hasIdleStatus);
-if (!hasIdleStatus) errors.push("idle state bar is missing its current state or next action");
+const idleStatusHidden = (await workflowStatus.count()) === 0;
+console.log("IDLE STATUS BAR HIDDEN:", idleStatusHidden);
+if (!idleStatusHidden) errors.push("workflow status bar is visible before a run starts");
 
 const optionCount = await p.locator("select[aria-label=Scenario] option").count();
 console.log("SCENARIO OPTIONS:", optionCount);
 const publishScenarioOption =
-  (await p.locator("select[aria-label=Scenario] option[value=publish_qms_torque_13]").textContent()) || "";
+  (await p.locator(`select[aria-label=Scenario] option[value=${PUBLISH_ID}]`).textContent()) || "";
 const hasPublishScenario =
-  optionCount === 11 && publishScenarioOption.includes("Document control: publish QMS-TORQUE 13");
+  optionCount === 12 && publishScenarioOption.includes("Document control: publish QMS-TORQUE 13");
 console.log("DOCUMENT CONTROL SCENARIO:", hasPublishScenario);
 if (!hasPublishScenario) errors.push("publish revision is not presented as a document-control scenario");
+
+const expectedGroups = [];
+for (const scenario of scenarioCatalog) {
+  if (!expectedGroups.includes(scenario.group)) expectedGroups.push(scenario.group);
+}
+expectedGroups.push("Document control");
+const expectedGroupLabels = expectedGroups.map((group) => {
+  const count = scenarioCatalog.filter((scenario) => scenario.group === group).length +
+    (group === "Document control" ? 1 : 0);
+  return `${group} — ${count} ${count === 1 ? "case" : "cases"}`;
+});
+const actualGroupLabels = await p.locator("select[aria-label=Scenario] optgroup").evaluateAll((groups) =>
+  groups.map((group) => group.getAttribute("label") || ""),
+);
+const hasFiveGroups = actualGroupLabels.length === 5;
+const hasGroupCounts =
+  JSON.stringify(actualGroupLabels) === JSON.stringify(expectedGroupLabels);
+console.log("SCENARIO GROUPS:", actualGroupLabels.join(" | "));
+console.log("SCENARIO GROUP ORDER + COUNTS:", hasFiveGroups && hasGroupCounts);
+if (!hasFiveGroups || !hasGroupCounts) {
+  errors.push("scenario picker is missing the five server-ordered groups or derived counts");
+}
 
 const scenarioWhy = (await p.locator("[class*=scenarioWhy]").textContent()) || "";
 const hasScenarioWhy =
   scenarioWhy.includes("Selected scenario:") &&
-  scenarioWhy.includes("This straightforward path finds current Plant B evidence, proposes containment, then pauses for your decision.");
+  scenarioWhy.includes("This straightforward path finds current Plant B evidence, proposes containment, then pauses for your decision.") &&
+  scenarioWhy.includes("Route: direct containment") &&
+  scenarioWhy.includes("Expected outcome: waiting for your decision");
 console.log("SELECTED-SCENARIO ROUTE:", hasScenarioWhy);
 if (!hasScenarioWhy) errors.push("selected scenario is missing its plain-language route explanation");
 
@@ -87,28 +110,74 @@ console.log(
 );
 await p.getByRole("button", { name: "LangGraph" }).click();
 
-await p.getByRole("button", { name: "Guided" }).click();
+const guidedOff = p.getByRole("button", { name: "Guided: Off" });
+const startsGuidedOff = (await guidedOff.count()) === 1;
+console.log("GUIDED OFF LABEL:", startsGuidedOff);
+if (!startsGuidedOff) errors.push("guided control does not start with the explicit off label");
+await guidedOff.click();
+const guidedOn = p.getByRole("button", { name: "Guided: On" });
+const switchesGuidedOn = (await guidedOn.count()) === 1;
+console.log("GUIDED ON LABEL:", switchesGuidedOn);
+if (!switchesGuidedOn) errors.push("guided control does not show the explicit on label");
+const guide = p.locator("[aria-label='Scenario guide']");
+const initialGuideText = (await guide.textContent()) || "";
+const initialGuideSteps = scenarioCatalog[0]?.guide_steps || [];
+const hasInitialGuide = initialGuideSteps.every((step) => initialGuideText.includes(step));
 console.log(
   "GUIDE STEPS:",
   await p.locator("[class*=guide] li").count(),
-  "items",
+  "items | scenario-specific:",
+  hasInitialGuide,
 );
+const alternateGuideScenario = scenarioCatalog.find(
+  (scenario) => scenario.id !== scenarioCatalog[0]?.id && scenario.guide_steps?.length,
+);
+let hasGuideUpdate = false;
+if (alternateGuideScenario) {
+  await p.locator("select[aria-label=Scenario]").selectOption(alternateGuideScenario.id);
+  const alternateGuideText = (await guide.textContent()) || "";
+  hasGuideUpdate = alternateGuideScenario.guide_steps.every((step) => alternateGuideText.includes(step));
+  await p.locator("select[aria-label=Scenario]").selectOption(scenarioCatalog[0].id);
+}
+console.log("GUIDE UPDATES ON SELECTION:", hasInitialGuide && hasGuideUpdate);
+if (!hasInitialGuide || !hasGuideUpdate || (await guide.getAttribute("aria-label")) === "Demo walkthrough") {
+  errors.push("guided mode did not render scenario-specific steps and metadata");
+}
 
 const runEnabledIdle = await p.getByRole("button", { name: "Run" }).isEnabled();
 console.log("RUN ENABLED AT IDLE:", runEnabledIdle);
 
-// --- all ten scenarios: eight wait with the right lot card; two abstain ---
+// --- all eleven incidents: every waiting-human route and both refusals ---
+console.log(
+  "INCIDENT CATALOG:",
+  incidentScenarios.length,
+  "incidents |",
+  approveScenarios.length,
+  "waiting-human |",
+  abstainScenarios.length,
+  "refusal |",
+  recoveryScenarios.length,
+  "recovery",
+);
+if (incidentScenarios.length !== 11 || recoveryScenarios.length < 1) {
+  errors.push("scenario catalog is missing the eleven incidents or recovery route");
+}
 await p.getByRole("radio", { name: "Traveler" }).click();
+const hasEmptyTravelerCopy =
+  (await p.getByText("Choose a scenario and select Run to see workflow stamps.", { exact: true }).count()) === 1;
+console.log("TRAVELER EMPTY COPY:", hasEmptyTravelerCopy);
+if (!hasEmptyTravelerCopy) errors.push("traveler empty state still names individual scenarios");
 
-for (const id of APPROVE_PATHS) {
+for (const scenario of approveScenarios) {
+  const { id } = scenario;
   await clickReset();
   await p.locator("select[aria-label=Scenario]").selectOption(id);
   await p.getByRole("button", { name: "Run" }).click();
   await waitStatus("waiting human");
-  const lot = LOT_BY_SCENARIO[id];
+  const lot = scenario.lot_id || LOT_BY_SCENARIO[id] || "L-8819";
   const lotTitle = (await p.locator("[class*=lotTitle]").allTextContents()).join(" ");
   const ok = lotTitle.includes(lot);
-  console.log(`WAIT ${id}:`, ok, "|", lotTitle.trim().slice(0, 80));
+  console.log(`WAIT ${id}${scenario.route_kind === "recovery" ? " (recovery)" : ""}:`, ok, "|", lotTitle.trim().slice(0, 80));
   if (!ok) errors.push(`lot card missing ${lot} for ${id}`);
   const proof = p.locator("[aria-label='Evidence used for this decision'] [data-proof-item]");
   await proof.first().waitFor({ state: "attached", timeout: 8000 }).catch(() => undefined);
@@ -119,7 +188,8 @@ for (const id of APPROVE_PATHS) {
   }
 }
 
-for (const id of ABSTAIN_PATHS) {
+for (const scenario of abstainScenarios) {
+  const { id } = scenario;
   await clickReset();
   await p.locator("select[aria-label=Scenario]").selectOption(id);
   await p.getByRole("button", { name: "Run" }).click();
@@ -191,9 +261,14 @@ const technicalDetails = p.locator("details[aria-label='Technical details']");
 const detailsClosed = (await technicalDetails.getAttribute("open")) === null;
 await technicalDetails.locator("summary").click();
 const technicalJson = (await technicalDetails.locator("pre").textContent()) || "";
-console.log("TECHNICAL DETAILS DISCLOSURE:", detailsClosed && technicalJson.includes('"lot_id": "L-8819"'));
-if (!detailsClosed || !technicalJson.includes('"lot_id": "L-8819"')) {
-  errors.push("technical plan details did not stay optional and available");
+const technicalHealth = (await technicalDetails.locator("[class*=healthNote]").textContent()) || "";
+const hasTechnicalDetails =
+  detailsClosed &&
+  technicalJson.includes('"lot_id": "L-8819"') &&
+  technicalHealth.includes("Runtime: local · local_hash_fallback");
+console.log("TECHNICAL DETAILS DISCLOSURE:", hasTechnicalDetails);
+if (!hasTechnicalDetails) {
+  errors.push("technical plan or runtime details did not stay optional and available");
 }
 
 await p.getByRole("button", { name: "Approve and create lot hold" }).click();
@@ -259,18 +334,26 @@ if (!pickerDisabledWaiting || toolbarPublishButtons !== 0) {
 
 await p.getByRole("button", { name: "Approve and create lot hold" }).click();
 await waitStatus("done");
-await scenarioPicker.selectOption("publish_qms_torque_13");
+await scenarioPicker.selectOption(PUBLISH_ID);
 const revBefore = (await p.locator("[class*=scenarioWhy]").textContent()) || "";
 const publishStatusBefore = (await workflowStatus.textContent()) || "";
 const publishBtn = p.getByRole("button", { name: "Publish revision 13" });
 const publishRun = p.getByRole("button", { name: "Run Torque NCR" });
+const controlGuide = (await guide.textContent()) || "";
+const hasControlGuide =
+  controlGuide.includes("Publish revision 13") &&
+  controlGuide.includes("controlled procedure pointer");
 const publishEnabledDone = await publishBtn.isEnabled();
 const runDisabledBeforePublish = await publishRun.isDisabled();
 console.log("REV NOTE BEFORE PUBLISH:", revBefore.trim());
+console.log("DOCUMENT CONTROL GUIDE:", hasControlGuide);
 console.log("PUBLISH AVAILABLE IN DOCUMENT CONTROL SCENARIO:", publishEnabledDone);
 console.log("RUN LOCKED BEFORE PUBLISH:", runDisabledBeforePublish);
 if (
   !revBefore.includes("revision 12 is current") ||
+  !revBefore.includes("Route: document control") ||
+  !revBefore.includes("Expected outcome: publish the controlled revision") ||
+  !hasControlGuide ||
   !publishStatusBefore.includes("Publish revision 13 to unlock the prepared Torque NCR run.") ||
   !publishEnabledDone ||
   !runDisabledBeforePublish
@@ -308,6 +391,37 @@ holds = await p.locator("[aria-label='Recorded in MOM']").textContent();
 const publishedHold = holds.includes("L-8819") && holds.includes("QMS-TORQUE-13");
 console.log("APPROVE AFTER PUBLISH:", publishedHold, "|", holds.trim().slice(0, 140));
 if (!publishedHold) errors.push("post-publish approve did not write QMS-TORQUE-13");
+
+// Stale SSE after New incident must not repaint the previous city.
+const stalePage = await p.context().newPage();
+await stalePage.route("**/threads/**/events", async (route) => {
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  await route.continue();
+});
+await stalePage.goto(`http://localhost:${PORT}/`);
+await stalePage.waitForTimeout(1500);
+await stalePage.getByRole("button", { name: "Reset demo" }).click();
+await stalePage.locator("header span").last().filter({ hasText: "idle" }).waitFor({ timeout: 8000 });
+await stalePage.locator("select[aria-label=Scenario]").selectOption("cryptic_fastener_note");
+await stalePage.getByRole("button", { name: "Run" }).click();
+await stalePage.locator("header span").last().filter({ hasText: "running" }).waitFor({ timeout: 8000 });
+await stalePage.getByRole("button", { name: "New incident" }).click();
+await stalePage.waitForTimeout(1200);
+const leftoverCity = await stalePage.evaluate(() => {
+  const status = document.querySelector("[data-status]")?.getAttribute("data-status") || "";
+  const steps = [...document.querySelectorAll("span")].some((el) =>
+    /\d+ steps/.test(el.textContent || ""),
+  );
+  const idleCopy = [...document.querySelectorAll("span")].some((el) =>
+    (el.textContent || "").includes("Idle — pick a scenario"),
+  );
+  return { status, steps, idleCopy };
+});
+console.log("NEW INCIDENT DROPS STALE CITY:", leftoverCity);
+if (leftoverCity.status !== "idle" || leftoverCity.steps || !leftoverCity.idleCopy) {
+  errors.push("new incident left the previous scenario painted on the city");
+}
+await stalePage.close();
 
 console.log("CONSOLE ERRORS:", errors.length ? errors.slice(0, 8) : "none");
 await b.close();

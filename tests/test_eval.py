@@ -10,7 +10,7 @@ def test_model_card_skips_gemini_without_key(tmp_path, monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
     def fake_sweep(**_kwargs):
-        return {"ok": True, "n": 10, "failures": [], "fallback_count": 0}
+        return {"ok": True, "n": 11, "failures": [], "fallback_count": 0}
 
     monkeypatch.setattr("companion.eval.runner.run_scenario_sweep", fake_sweep)
     path = tmp_path / "model_card.json"

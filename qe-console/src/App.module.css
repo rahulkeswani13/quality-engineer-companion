@@ -55,7 +55,7 @@
 
 .statusBar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem 1rem;
   align-items: baseline;
   border-bottom: 1px solid var(--rule);
@@ -305,12 +305,30 @@ select.chip {
   font-size: 13px;
 }
 
+.guideMeta {
+  margin: 0 0 0.35rem;
+  font-size: 12px;
+}
+
+.guide ol {
+  margin: 0;
+  padding-left: 1.6rem;
+}
+
 .scenarioWhy {
   margin: 0;
   padding: 0.35rem 0.5rem;
   border-top: 1px solid var(--rule);
   font-size: 12.5px;
   color: var(--ink);
+}
+
+.scenarioMeta {
+  display: block;
+  margin-top: 0.2rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
 }
 
 .guide li + li {

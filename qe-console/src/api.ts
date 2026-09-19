@@ -63,11 +63,16 @@ export type HealthInfo = {
   current_revs?: Record<string, number>;
 };
 
+export type ScenarioRouteKind = "direct" | "recovery" | "refusal" | "control";
+
 export type ScenarioInfo = {
   id: string;
   label: string;
   query: string;
   expect_status: "waiting_human" | "abstained";
+  group: string;
+  route_kind: ScenarioRouteKind;
+  guide_steps: string[];
   why_route: string;
   lot_id: string | null;
   must_cite: string[];
@@ -162,7 +167,9 @@ export function openEventStream(
   onDone: () => void,
 ): EventSource {
   const source = new EventSource(`/threads/${threadId}/events`);
+  let closed = false;
   const handle = (ev: MessageEvent) => {
+    if (closed) return;
     try {
       const data = JSON.parse(ev.data) as {
         event?: string;
@@ -182,8 +189,15 @@ export function openEventStream(
   source.addEventListener("error", handle);
   source.addEventListener("status", handle);
   source.onerror = () => {
+    if (closed) return;
+    closed = true;
     source.close();
     onDone();
+  };
+  const nativeClose = source.close.bind(source);
+  source.close = () => {
+    closed = true;
+    nativeClose();
   };
   return source;
 }

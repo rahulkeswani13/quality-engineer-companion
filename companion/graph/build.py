@@ -93,6 +93,19 @@ REFUSAL_ROUTE = [
     "grade",
     "abstain",
 ]
+RECOVERY_ROUTE = [
+    "load_mes",
+    "retrieve",
+    "grade",
+    "rewrite",
+    "retrieve",
+    "grade",
+    "retrieve_capa",
+    "strip_poison",
+    "plan",
+    "audit",
+    "wait_human",
+]
 
 
 def compile_graph(checkpointer):

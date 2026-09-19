@@ -8,6 +8,7 @@ from pathlib import Path
 
 from companion.config import EVAL_DIR
 from companion.graph.build import FULL_APPROVE_ROUTE as FULL_ROUTE
+from companion.graph.build import RECOVERY_ROUTE as RECOVERY
 from companion.graph.build import REFUSAL_ROUTE as REFUSAL
 from companion.mom.apply import list_holds
 from companion.runtime import Companion
@@ -28,7 +29,7 @@ def run_scenario_sweep(
     provider: str = "local",
     write_report: bool = True,
 ) -> dict:
-    """Replay all ten canned scenarios on throwaway DBs and grade the routes.
+    """Replay all eleven canned scenarios on throwaway DBs and grade the routes.
 
     Checks per scenario: expected terminal status, exact node route, poison
     citations absent, and (for lures) trap retrieved-then-graded-out.
@@ -77,15 +78,19 @@ def run_scenario_sweep(
                 if not grounded:
                     case_failures.append(f"missing cite {doc_id}")
 
-            # Route shape: approve scenarios must reach wait_human without a
-            # rewrite loop; refusals must loop once and abstain.
-            expected_nodes = (
-                FULL_ROUTE if scen.expect_status == "waiting_human" else REFUSAL
-            )
-            if nodes != expected_nodes:
-                case_failures.append(
-                    f"route {nodes} != {expected_nodes}"
-                )
+            # Route shape is scenario metadata, not an inference from terminal
+            # status: direct incidents, deterministic recovery, and refusals
+            # each have an explicit graph contract.
+            expected_routes = {
+                "direct": FULL_ROUTE,
+                "recovery": RECOVERY,
+                "refusal": REFUSAL,
+            }
+            expected_nodes = expected_routes.get(scen.route_kind)
+            if expected_nodes is None:
+                case_failures.append(f"unknown route_kind {scen.route_kind}")
+            elif nodes != expected_nodes:
+                case_failures.append(f"route {nodes} != {expected_nodes}")
 
             # Trap recall on the two lure scenarios.
             trap_map = {
@@ -242,7 +247,7 @@ def run_eval(gold_path: Path | None = None, report_path: Path | None = None) -> 
 
 
 def run_model_card(path: Path | None = None) -> dict:
-    """Optional Gemini replay of the ten scenarios. Soft-skip when no API key.
+    """Optional Gemini replay of the eleven scenarios. Soft-skip when no API key.
 
     ``python -m companion eval`` stays local. ``eval --models`` writes this card.
     Missing GOOGLE_API_KEY never fails CI.
