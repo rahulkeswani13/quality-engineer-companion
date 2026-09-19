@@ -84,7 +84,7 @@ function Building({
       >
         <boxGeometry args={[1.9, node.h, 1.9]} />
         <meshStandardMaterial
-          color={TOKENS.ink}
+          color={ghost ? TOKENS.rule : TOKENS.ink}
           transparent={ghost}
           opacity={ghost ? 0.16 : 1}
           roughness={0.85}
@@ -96,7 +96,7 @@ function Building({
       <mesh position={[node.pos[0], node.h + 0.09, node.pos[1]]}>
         <boxGeometry args={[2.3, 0.18, 2.3]} />
         <meshStandardMaterial
-          color={visited ? TOKENS.rule : TOKENS.ink}
+          color={TOKENS.rule}
           transparent={ghost}
           opacity={ghost ? 0.12 : 1}
           roughness={0.9}
@@ -367,7 +367,7 @@ export default function CityView({
               key={n.id}
               node={n}
               visited={
-                n.id === "start_sign" || visited.includes(n.id)
+                n.id === "start_sign" ? visited.length > 0 : visited.includes(n.id)
                 }
               isCurrent={currentId === n.id}
               selected={selectedId === n.id}

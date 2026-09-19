@@ -18,7 +18,7 @@ python -m companion eval            # gold cases + scenarios; must print "ok": t
 
 python -m companion serve           # FastAPI on :8000  (terminal 1)
 cd qe-console && npm run dev        # Vite on :5173      (terminal 2)
-cd qe-console && npm run probe      # Playwright walk of all 10 scenarios
+cd qe-console && npm run probe      # Playwright walk of all 11 incidents + document control
 ```
 
 ## Hard rules

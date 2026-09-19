@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from companion.config import TORQUE_NCR_QUERY
 from companion.rag.embed import GeminiQuotaError
+from companion.rag.llm import local_rewrite
 
 
 def test_health_reports_provider_and_retriever(client):
@@ -108,3 +109,21 @@ def test_gemini_quota_falls_back_to_local(tmp_path, monkeypatch):
     assert engine.provider == "local"
     assert engine.fallback_count >= 1
     assert engine.retriever == "local_hash_fallback"
+
+
+def test_local_rewrite_recovers_cryptic_fastener_notes_only():
+    recovered = local_rewrite(
+        "Traveler note for SN-4419: final fastener came in below spec at final assembly. What happens next?",
+        "B",
+    )
+    lowered = recovered.lower()
+    for term in ("torque", "ncr", "containment", "hold", "current revision", "plant b"):
+        assert term in lowered
+
+    for query in (
+        "How do I change the default printer on macOS Sequoia?",
+        "Where can I find the cafeteria menu and the guest wifi password?",
+        "The office fastener bin is empty; order more hardware.",
+    ):
+        rewritten = local_rewrite(query, "B").lower()
+        assert "torque ncr containment hold" not in rewritten

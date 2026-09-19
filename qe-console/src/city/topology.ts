@@ -203,6 +203,21 @@ export const FULL_APPROVE_ROUTE = [
   "wait_human",
 ];
 
+/** Mirrors a one-retry recovery route that grounds on the second search. */
+export const RECOVERY_ROUTE = [
+  "load_mes",
+  "retrieve",
+  "grade",
+  "rewrite",
+  "retrieve",
+  "grade",
+  "retrieve_capa",
+  "strip_poison",
+  "plan",
+  "audit",
+  "wait_human",
+];
+
 /** Mirrors REFUSAL_ROUTE in companion/graph/build.py. */
 export const REFUSAL_ROUTE = [
   "load_mes",
